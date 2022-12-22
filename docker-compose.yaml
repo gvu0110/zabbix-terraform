@@ -1,0 +1,88 @@
+version: '3.1'
+
+services:
+  zabbix-web:
+    image: zabbix/zabbix-web-apache-mysql:ubuntu-6.0.12
+    container_name: zabbix-web
+    restart: on-failure
+    ports:
+      - '8080:8080'
+      - '8443:8443'
+    environment:
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
+      MYSQL_DATABASE: zabbix
+      ZBX_SERVER_HOST: zabbix-server
+      ZBX_SERVER_PORT: '10051'
+      DB_SERVER_HOST: mysql-server
+      DB_SERVER_PORT: '3306'
+      PHP_TZ: America/Toronto
+    networks:
+      zbx_net_backend:
+        aliases:
+        - zabbix-web
+    depends_on:
+      - zabbix-server
+      - mysql-server
+
+  zabbix-server:
+    image: zabbix/zabbix-server-mysql:ubuntu-6.0.12
+    container_name: zabbix-server
+    restart: on-failure
+    ports:
+      - '10051:10051'
+    environment:
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
+      MYSQL_DATABASE: zabbix
+      DB_SERVER_HOST: mysql-server
+      DB_SERVER_PORT: '3306'
+    networks:
+      zbx_net_backend:
+        aliases:
+          - zabbix-server
+    depends_on:
+      - mysql-server
+  
+  zabbix-agent:
+    image: zabbix/zabbix-agent:ubuntu-6.0.12
+    container_name: zabbix-agent
+    restart: on-failure
+    ports:
+      - '10050:10050'
+    networks:
+      zbx_net_backend:
+        aliases:
+        - zabbix-agent
+    depends_on:
+      - zabbix-server
+
+  mysql-server:
+    image: mysql:8.0.25
+    container_name: mysql-server
+    command:
+    - mysqld
+    - --character-set-server=utf8mb4
+    - --collation-server=utf8mb4_bin
+    - --default-authentication-plugin=mysql_native_password
+    restart: always
+    ports:
+      - '3306:3306'
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    networks:
+      zbx_net_backend:
+        aliases:
+        - mysql-server
+    cap_add:
+      - SYS_NICE  # Handle mbind: Operation not permitted silently
+
+networks:
+  zbx_net_backend:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: 'false'
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.16.239.0/24
